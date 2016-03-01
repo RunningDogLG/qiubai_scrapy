@@ -1,5 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
+
+"""
+@author:andrew
+@date:2016-2-29
+"""
 
 import scrapy
 from scrapy.http import Request
@@ -12,9 +17,10 @@ class QiubaiSpider(scrapy.Spider):
 
     start_urls = (
         # 'http://www.qiushibaike.com/pic/',
-        'http://www.qiushibaike.com/',
+        'http://www.qiushibaike.com',
     )
 
+    # 伪造的头部
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Encoding": "gzip, deflate, sdch",
@@ -32,39 +38,81 @@ class QiubaiSpider(scrapy.Spider):
             yield self.make_requests_from_url(url)
 
     def make_requests_from_url(self, url):
-        """
-        :return:
-        """
+
         return Request(url, headers=self.headers, dont_filter=True)
 
     def parse(self, response):
+
         item = QiubaiItem()
 
         for mb in response.xpath('//div[@class="article block untagged mb15"]'):
             try:
-                author = mb.xpath('div[@class="author clearfix"]/a/h2/text()').extract()[0].encode('utf-8')
+                # 部分为匿名发布，所有以常规解析会出错
+                try:
+                    # 正常发布
+                    author = mb.xpath('div[@class="author clearfix"]/a/h2/text()').extract()[0]
+                except Exception, e:
+                    # 匿名发布
+                    author = mb.xpath('div[@class="author clearfix"]/span/h2/text()').extract()[0]
+
+                # 部分为匿名发布，所有以常规解析会出错
+                try:
+                    # 正常发布
+                    author_logo = mb.xpath('div[@class="author clearfix"]/a/img/@src').extract()[0]
+                except Exception, e:
+                    author_logo = mb.xpath('div[@class="author clearfix"]/span/img/@src').extract()[0]
+
+                content = mb.xpath('div[@class="content"]/text()').extract()[0]
+
+                # 纯文字的糗事，没有图片
+                thumb = ""
+                try:
+                    thumb = mb.xpath('div[@class="thumb"]/a/img/@src').extract()[0]
+                except Exception, e:
+                    pass
+
+                vote = ""
+                try:
+                    vote = mb.xpath('div[@class="stats"]/span[@class="stats-vote"]/i/text()').extract()[0]
+                except Exception, e:
+                    # 赞为空
+                    pass
+
+                comments = ""
+                try:
+                    # 评论为空
+                    comments = mb.xpath('div[@class="stats"]/span[@class="stats-comments"]/a/i/text()').extract()[0]
+                except Exception, e:
+                    pass
+
+                item['author'] = author.encode('utf-8')     # 转码
+                item['author_logo'] = author_logo
+                item['content'] = content.encode('utf-8')
+                item['thumb'] = thumb
+                item['vote'] = vote
+                item['comments'] = comments.encode('utf-8')
+
+                # print "===================================="*3
+                # print "author       :", item['author']
+                # print "author_logo  :", item['author_logo']
+                # print "content      :", item['content']
+                # print "thumb        :", item['thumb']
+                # print "vote         :", item['vote']
+                # print "comment      :", item['comments']
+                # print "\r\n"
+                yield item
             except Exception, e:
-                author = mb.xpath('div[@class="author clearfix"]/span/h2/text()').extract()[0].encode('utf-8')
+                print "get info error! continue get next info!"
+                continue
 
-            try:
-                author_logo = mb.xpath('div[@class="author clearfix"]/a/img/@src').extract()[0]
-            except Exception, e:
-                author_logo = mb.xpath('div[@class="author clearfix"]/span/img/@src').extract()[0]
+        # 获取下一页的链接
+        pages = response.xpath('//ul[@class="pagination"]/li')
+        next_page = pages[-1].xpath('a/@href').extract()[0]
 
-            content = mb.xpath('div[@class="content"]/text()').extract()[0]
-            vote = mb.xpath('div[@class="stats"]/span[@class="stats-vote"]/i/text()').extract()[0]
-            comments = mb.xpath('div[@class="stats"]/span[@class="stats-comments"]/a/i/text()').extract()[0]
-            thumb = ""
-            try:
-                thumb = mb.xpath('div[@class="thumb"]/a/img/@src').extract()[0]
-            except Exception, e:
-                pass
-
-            item['author'] = author
-            item['author_logo'] = author_logo
-            item['content'] = content
-            item['thumb'] = thumb
-            item['vote'] = vote
-            item['comments'] = comments
-
-            yield item
+        # 如果已经时最后一页了，在继续就到更多内容了，这里我们只抓取首页的内容
+        if next_page == '/hot':
+            print "====over===="
+            return
+        else:
+            next_page_url = self.start_urls[0] + next_page
+            yield Request(url=next_page_url, headers=self.headers, callback=self.parse)

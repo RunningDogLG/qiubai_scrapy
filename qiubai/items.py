@@ -10,13 +10,13 @@ import scrapy
 
 class QiubaiItem(scrapy.Item):
     # define the fields for your item here like:
-    # name = scrapy.Field()
-    author      = scrapy.Field()
-    author_logo = scrapy.Field()
 
-    content     = scrapy.Field()
-    thumb       = scrapy.Field()
+    author      = scrapy.Field()    # 作者
+    author_logo = scrapy.Field()    # 作者头像
 
-    vote        = scrapy.Field()
-    comments    = scrapy.Field()
+    content     = scrapy.Field()    # 内容
+    thumb       = scrapy.Field()    # 内容图片
+
+    vote        = scrapy.Field()    # 赞人数
+    comments    = scrapy.Field()    # 评论数
 
